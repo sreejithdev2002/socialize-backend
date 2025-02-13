@@ -14,25 +14,21 @@ const Signup = async (req, res) => {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    email = email.toLowerCase(); // Normalize email
+    email = email.toLowerCase();
 
-    // Check if the user exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(401).json({ message: "Email already exists" });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
     const newUser = await User.create({
       name,
       email,
       password: hashedPassword,
     });
 
-    // Generate JWT
     const token = jwt.sign({ id: newUser.id, email }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
@@ -49,7 +45,6 @@ const Login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check if user exists
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
@@ -58,13 +53,11 @@ const Login = async (req, res) => {
         .json({ message: "User does not exist or Invalid email" });
     }
 
-    // Compare password using bcrypt
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid password" });
     }
 
-    // Generate JWT Token
     const token = jwt.sign(
       { id: user.id, email: user.email },
       process.env.JWT_SECRET,
@@ -83,7 +76,7 @@ const CreatePost = async (req, res) => {
   try {
     const { caption } = req.body;
     const image = req.file ? req.file.filename : null;
-    const userId = req.user.id; // Get user ID from middleware
+    const userId = req.user.id;
 
     if (!caption) {
       return res.status(400).json({ message: "Caption required" });
@@ -119,7 +112,7 @@ const GetPosts = async (req, res) => {
         },
         {
           model: Like,
-          attributes: ["id"], // We only need the count, not the actual data
+          attributes: ["id"],
         },
         {
           model: Comment,
@@ -128,14 +121,13 @@ const GetPosts = async (req, res) => {
       ],
     });
 
-    // Transform posts data to include likes and comments count
     const postsWithCounts = posts.map((post) => ({
       id: post.id,
       user: post.User,
       caption: post.caption,
       imageUrl: post.imageUrl,
-      likes: post.Likes.length, // Count total likes
-      comments: post.Comments.length, // Count total comments
+      likes: post.Likes.length,
+      comments: post.Comments.length,
     }));
 
     res.status(200).json({ posts: postsWithCounts });
@@ -148,7 +140,7 @@ const GetPosts = async (req, res) => {
 
 const getUserPosts = async (req, res) => {
   try {
-    const userId = req.user.id; // Assuming `req.user` contains authenticated user data
+    const userId = req.user.id;
 
     const posts = await Post.findAll({
       where: { userId },
@@ -158,7 +150,6 @@ const getUserPosts = async (req, res) => {
           attributes: ["name"],
         },
       ],
-      order: [["createdAt", "DESC"]],
     });
 
     res.status(200).json({ posts });
@@ -168,7 +159,6 @@ const getUserPosts = async (req, res) => {
   }
 };
 
-// Get posts liked by the user
 const getUserLikedPosts = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -184,7 +174,6 @@ const getUserLikedPosts = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
-    // Extract only post data from likes
     const posts = likedPosts.map((like) => like.Post);
 
     res.status(200).json({ likedPosts: posts });
@@ -193,7 +182,6 @@ const getUserLikedPosts = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 
 const GetComments = async (req, res) => {
   try {
@@ -212,14 +200,14 @@ const GetComments = async (req, res) => {
   }
 };
 
-// Add a comment to a post
 const AddComment = async (req, res) => {
   try {
     const { postId } = req.params;
     const { text } = req.body;
-    const userId = req.user.id; // Assuming token authentication
+    const userId = req.user.id;
 
-    if (!text.trim()) return res.status(400).json({ message: "Comment cannot be empty" });
+    if (!text.trim())
+      return res.status(400).json({ message: "Comment cannot be empty" });
 
     const newComment = await Comment.create({
       text,
@@ -237,24 +225,19 @@ const AddComment = async (req, res) => {
 const LikePost = async (req, res) => {
   try {
     const { postId } = req.params;
-    const userId = req.user.id; // Ensure this is retrieved from the authentication middleware
+    const userId = req.user.id;
 
-    // Check if the user already liked the post
     const existingLike = await Like.findOne({ where: { postId, userId } });
 
     if (existingLike) {
-      // If like exists, remove it (dislike)
       await Like.destroy({ where: { postId, userId } });
 
-      // Get updated like count
       const likeCount = await Like.count({ where: { postId } });
 
       return res.status(200).json({ liked: false, likes: likeCount });
     } else {
-      // If like doesn't exist, add a new like
       await Like.create({ postId, userId });
 
-      // Get updated like count
       const likeCount = await Like.count({ where: { postId } });
 
       return res.status(201).json({ liked: true, likes: likeCount });
@@ -262,6 +245,42 @@ const LikePost = async (req, res) => {
   } catch (error) {
     console.error("Error in likePost:", error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+const checkLikeStatus = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user.id;
+
+    const existingLike = await Like.findOne({ where: { postId, userId } });
+
+    res.status(200).json({ isLiked: !!existingLike });
+  } catch (error) {
+    console.error("Error checking like status:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+const GetUserDetails = async (req, res) => {
+  try {
+    const { email } = req.params;
+    const data = await User.findOne({
+      where: { email },
+      attributes: ["id", "name", "email"],
+      raw: true,
+    });
+
+    console.log("Raw User Data from DB:", data);
+
+    if (!data) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.json({ message: "User found", data });
+  } catch (error) {
+    console.error("Error fetching user details:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -274,5 +293,7 @@ module.exports = {
   getUserLikedPosts,
   GetComments,
   AddComment,
-  LikePost
+  LikePost,
+  checkLikeStatus,
+  GetUserDetails,
 };

@@ -1,6 +1,6 @@
 const { DataTypes } = require("sequelize");
-const sequelize = require("../Config/dbConnect"); // Import Sequelize instance
-const User = require("./User"); // Import User model
+const sequelize = require("../Config/dbConnect");
+const User = require("./User");
 
 const Post = sequelize.define("Post", {
   id: {

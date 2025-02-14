@@ -14,8 +14,6 @@ const Signup = async (req, res) => {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    email = email.toLowerCase();
-
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(401).json({ message: "Email already exists" });
@@ -271,7 +269,6 @@ const GetUserDetails = async (req, res) => {
       raw: true,
     });
 
-    console.log("Raw User Data from DB:", data);
 
     if (!data) {
       return res.status(404).json({ message: "User not found" });
